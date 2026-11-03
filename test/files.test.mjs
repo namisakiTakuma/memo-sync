@@ -42,7 +42,7 @@ test('権限は最小限で、ドライブはアプリ専用フォルダの権�
 });
 
 test('画面のスクリプトはメモの文字を HTML として組み立てない', () => {
-  const scripts = ['editor', 'live-editor', 'preview', 'images', 'annotate', 'search', 'memo-copy', 'sensitive-bar', 'notice', 'menu', 'inline-edit', 'export', 'options', 'options-trash', 'options-ui', 'options-backups', 'common', 'theme'];
+  const scripts = ['editor', 'live-editor', 'slash-menu', 'preview', 'images', 'annotate', 'search', 'memo-copy', 'sensitive-bar', 'notice', 'menu', 'inline-edit', 'export', 'options', 'options-trash', 'options-ui', 'options-backups', 'common', 'theme'];
   for (const path of scripts.map((name) => `ui/${name}.js`)) {
     const code = read(path);
     assert.doesNotMatch(code, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/, path);

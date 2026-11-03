@@ -374,6 +374,26 @@ body[data-view="panel"] .editor {
   color: var(--danger);
 }
 
+/* 「/」で出すメニュー（slash-menu.js）。選んでいる項目は、フォーカスでなく aria-selected で塗る */
+.slash-menu[popover] {
+  max-height: min(280px, calc(100vh - 8px));
+}
+
+.slash-item {
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.slash-item:hover,
+.slash-item[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.slash-item kbd {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+}
+
 .menu-separator {
   height: 1px;
   margin: 4px 2px;

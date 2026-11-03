@@ -84,6 +84,7 @@ memo-sync/
 │   │   ├── markdown.js     Markdown の読み取りと、書式付きコピー・記号を外したコピーへの変換
 │   │   ├── live-marks.js   書式を付けて表示している間に、どこに書式を付け、どの記号を隠すか
 │   │   ├── edit-keys.js    ⌘B などの書式の付け外しと、Tab の字下げ
+│   │   ├── slash-commands.js  「/」で出すメニューの中身と、選んだときの書き換え
 │   │   ├── search.js       すべてのメモからの検索と置換
 │   │   ├── sensitive.js    パスワード・API キー・個人情報らしい文字の検出
 │   │   ├── copy-format.js  「コピー」で作る文章の形
@@ -92,6 +93,7 @@ memo-sync/
 │   ├── ui/               ポップアップ・サイドパネル・設定画面
 │   │   ├── editor.js       メモの画面の中心
 │   │   ├── live-editor.js  書式を付けて表示している間の入力欄。CodeMirror で作る
+│   │   ├── slash-menu.js   「/」で出すメニュー
 │   │   ├── preview.js      書式を付けて表示している間の表と画像
 │   │   ├── search.js       探す欄と置換の欄
 │   │   └── memo-copy.js, images.js, menu.js, notice.js など

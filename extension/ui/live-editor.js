@@ -69,15 +69,17 @@ function continueMarkup(view) {
   return insert(`\n${quote}`);
 }
 
-// lib/edit-keys.js の書き換えを、選んでいる所に当てる。日本語の変換中は何もしない。
-// 前後に書いた文字とまとめずに、1 回の「元に戻す」で戻るようにする
+// { changes, selection } の書き換えを当てる。前後に書いた文字とまとめずに、1 回の「元に戻す」で戻るようにする
+function applyEdit(view, { changes, selection }) {
+  view.dispatch({ changes, selection, scrollIntoView: true, userEvent: 'input', annotations: isolateHistory.of('full') });
+}
+
+// lib/edit-keys.js の書き換えを、選んでいる所に当てる。日本語の変換中は何もしない
 function runEdit(view, edit) {
   if (view.composing || view.state.readOnly) return false;
   const { anchor, head } = view.state.selection.main;
   const result = edit(view.state.doc.toString(), anchor, head);
-  if (result) {
-    view.dispatch({ changes: result.changes, selection: result.selection, scrollIntoView: true, userEvent: 'input', annotations: isolateHistory.of('full') });
-  }
+  if (result) applyEdit(view, result);
   return true;
 }
 
@@ -99,10 +101,11 @@ function toggleLine(view, n) {
 }
 
 // parent に入力欄を作る。
-// onChange(text) は書いたとき、onSelect() はカーソルや選んだ範囲が変わったとき、onTooLong() は長さの上限を超えそうなとき。
+// onChange(text, inserted) は書いたとき（inserted は最後に入った文字）、onSelect() はカーソルや選んだ範囲、フォーカスが変わったとき、
+// onTooLong() は長さの上限を超えそうなとき、keys はほかのキー操作より先に受け取るキー（「/」のメニューの ↑↓ など）。
 // imageUrl(no) は [画像 no] の画像の URL、openImage(no) は画像を押したとき、openLink(href) はリンクを押したとき、
 // onCompositionEnd() は日本語の変換を終えたとき
-export function createLiveEditor({ parent, maxLength, onChange, onSelect, onTooLong, imageUrl, openImage, openLink, onCompositionEnd }) {
+export function createLiveEditor({ parent, maxLength, keys = [], onChange, onSelect, onTooLong, imageUrl, openImage, openLink, onCompositionEnd }) {
   const renderer = createRenderer({ imageUrl, openImage });
 
   class BulletWidget extends WidgetType {
@@ -312,7 +315,7 @@ export function createLiveEditor({ parent, maxLength, onChange, onSelect, onTooL
   const editableConfig = (on) => [EditorView.editable.of(on), EditorState.readOnly.of(!on)];
 
   const extensions = () => [
-    keymap.of([{ key: 'Enter', run: continueMarkup }, ...editKeys]),
+    keymap.of([...keys, { key: 'Enter', run: continueMarkup }, ...editKeys]),
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.lineWrapping,
@@ -325,7 +328,14 @@ export function createLiveEditor({ parent, maxLength, onChange, onSelect, onTooL
     decoField,
     limitLength,
     EditorView.updateListener.of((update) => {
-      if (update.transactions.some((tr) => tr.docChanged && !tr.annotation(External))) onChange(update.state.doc.toString());
+      const own = update.transactions.filter((tr) => tr.docChanged && !tr.annotation(External));
+      if (own.length) {
+        let inserted = '';
+        own.at(-1).changes.iterChanges((fromA, toA, fromB, toB, text) => {
+          inserted = text.toString();
+        });
+        onChange(update.state.doc.toString(), inserted);
+      }
       if (update.selectionSet || update.focusChanged) onSelect?.();
     }),
     EditorView.domEventHandlers({
@@ -352,7 +362,11 @@ export function createLiveEditor({ parent, maxLength, onChange, onSelect, onTooL
 
   return {
     dom: view.dom,
+    contentDOM: view.contentDOM,
     getText: () => view.state.doc.toString(),
+    // pos 文字目が画面のどこにあるか（「/」のメニューを出す場所）
+    coordsAt: (pos) => view.coordsAtPos(pos),
+    edit: (result) => applyEdit(view, result),
     // 別のメモに替えるとき。「元に戻す」の記録も新しくする
     setText(text) {
       view.setState(EditorState.create({ doc: text, extensions: extensions() }));

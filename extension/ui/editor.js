@@ -42,6 +42,7 @@ import { createImageStrip } from './images.js';
 import { createSearch } from './search.js';
 import { createLiveEditor } from './live-editor.js';
 import { applyChanges, indentLines, toggleInline } from '../lib/edit-keys.js';
+import { createSlashMenu, textareaCoords } from './slash-menu.js';
 import { createMemoCopy } from './memo-copy.js';
 import { createSensitiveBar } from './sensitive-bar.js';
 import { createNotices } from './notice.js';
@@ -144,11 +145,24 @@ function openSettings(anchor = '') {
 const live = createLiveEditor({
   parent: el.live,
   maxLength: MAX_TEXT_LENGTH,
-  onChange: (text) => {
+  // 「/」のメニューを開いている間は、↑↓・Enter・Tab・Esc をメニューに渡す
+  keys: [
+    { key: 'ArrowDown', run: () => slashMenu.key('down') },
+    { key: 'ArrowUp', run: () => slashMenu.key('up') },
+    { key: 'Enter', run: () => slashMenu.key('enter') },
+    { key: 'Tab', run: () => slashMenu.key('enter') },
+    { key: 'Escape', run: () => slashMenu.key('escape') },
+    { key: 'Mod-/', run: () => slashMenu.openHere() },
+  ],
+  onChange: (text, inserted) => {
     el.memo.value = text;
     onInput();
+    slashMenu.edited(inserted);
   },
-  onSelect: () => updateCount(),
+  onSelect: () => {
+    updateCount();
+    slashMenu.sync();
+  },
   onTooLong: () => showNotice(`1 つのメモは ${MAX_TEXT_LENGTH.toLocaleString()} 文字までです。それより後ろは入りません`, 'error'),
   imageUrl: (no) => strip.imageUrl(no),
   openImage: (no) => strip.openImage(no),
@@ -158,6 +172,30 @@ const live = createLiveEditor({
     state.pendingExternal = false;
     applyExternal();
   },
+});
+// 「/」で出すメニュー。今出している入力欄を相手にする
+const liveSurface = {
+  text: () => live.getText(),
+  cursor: () => live.selection().end,
+  coords: (pos) => live.coordsAt(pos),
+  apply: (result) => live.edit(result),
+  composing: () => live.composing(),
+  hasFocus: () => live.hasFocus(),
+  element: () => live.contentDOM,
+};
+const memoSurface = {
+  text: () => el.memo.value,
+  cursor: () => el.memo.selectionEnd,
+  coords: (pos) => textareaCoords(el.memo, pos),
+  apply: (result) => editTextarea(result),
+  composing: () => state.composing,
+  hasFocus: () => document.activeElement === el.memo,
+  element: () => el.memo,
+};
+const slashMenu = createSlashMenu({
+  box: $('slash-menu'),
+  surface: () => (state.live ? liveSurface : memoSurface),
+  onAction: (action) => (action === 'date' ? insertNow() : requestUrl()),
 });
 // sensitive-bar.js などが、どちらの入力欄でも同じように場所を選べるようにする
 const memoInput = {
@@ -905,6 +943,7 @@ function moveToNeighbor() {
 
 function showCurrent() {
   const memo = state.doc.memos[state.currentId];
+  slashMenu.close();
   el.memo.value = memo && !memo.deleted ? memo.text : '';
   live.setText(el.memo.value);
   state.pendingExternal = false;
@@ -1313,6 +1352,7 @@ function setLive(on, { focus = false } = {}) {
     if (focus) focusEditor();
     return;
   }
+  slashMenu.close();
   const hadFocus = state.live ? live.hasFocus() : document.activeElement === el.memo;
   const { start, end } = state.live ? live.selection() : { start: el.memo.selectionStart, end: el.memo.selectionEnd };
   state.live = on;
@@ -1568,6 +1608,8 @@ async function insertCurrentUrl() {
 }
 
 el.memo.addEventListener('input', onInput);
+el.memo.addEventListener('input', (event) => slashMenu.edited(event.inputType?.startsWith('insert') ? event.data : null));
+el.memo.addEventListener('blur', () => slashMenu.close());
 
 // ⌘B・⌘I・⌘⇧X・⌘⇧C で書式を付け外しし、Tab と Shift+Tab で字下げを変える（書式付きの入力欄と同じ）。
 // キーボードだけで使う人のために、Esc を押してから 2 秒以内の Tab は、ふだんどおり次の部品へ移る
@@ -1575,6 +1617,13 @@ const ESCAPE_TAB_FOR = 2000;
 let escapedAt = 0;
 el.memo.addEventListener('keydown', (event) => {
   if (event.isComposing || el.memo.readOnly) return;
+  // 「/」のメニュー。開いている間は ↑↓・Enter・Tab・Esc をメニューに渡し、⌘/ で開く
+  const plain = !event.altKey && !event.ctrlKey && !event.metaKey;
+  const menuKey = { ArrowDown: 'down', ArrowUp: 'up', Enter: 'enter', Tab: 'enter', Escape: 'escape' }[event.key];
+  if ((menuKey && plain && !event.shiftKey && slashMenu.key(menuKey)) || (event.key === '/' && (isMac ? event.metaKey : event.ctrlKey) && slashMenu.openHere())) {
+    event.preventDefault();
+    return;
+  }
   if (event.key === 'Escape') {
     escapedAt = Date.now();
     return;
@@ -1613,7 +1662,9 @@ function editTextarea({ changes, selection }) {
 }
 // 選んだ文字数を出すため
 document.addEventListener('selectionchange', () => {
-  if (document.activeElement === el.memo) updateCount();
+  if (document.activeElement !== el.memo) return;
+  updateCount();
+  slashMenu.sync();
 });
 for (const type of ['select', 'keyup', 'mouseup', 'blur']) el.memo.addEventListener(type, updateCount);
 
@@ -1735,20 +1786,24 @@ el.memo.addEventListener('compositionend', () => {
   }
 });
 
-el.insertTime.addEventListener('click', () => {
+// 今の日時を入れる（「日時を入れる」のボタンと、「/」のメニューの「日時」）
+function insertNow() {
   insertText(`${formatTimestamp(new Date(), state.prefs.timeFormat)}\n`);
-});
+}
+el.insertTime.addEventListener('click', insertNow);
 
 // サイドパネルではページを開き直すたびに activeTab の許可が切れるので、タブを読む許可を一度だけもらう。
 // Chrome は「閲覧履歴の読み取り」と強く警告するので、求める前に何に使うかを説明する
-el.insertUrl.addEventListener('click', () => {
+// 表示中のページの URL を入れる（「URL を入れる」のボタンと、「/」のメニューの「ページの URL」）
+function requestUrl() {
   if (view === 'panel' && !state.canReadTabs) {
     el.confirmTabs.hidden = false;
     el.confirmTabsYes.focus();
     return;
   }
   insertCurrentUrl();
-});
+}
+el.insertUrl.addEventListener('click', requestUrl);
 el.confirmTabsNo.addEventListener('click', () => closeBar(el.confirmTabs, el.insertUrl));
 el.confirmTabsYes.addEventListener('click', async () => {
   closeBar(el.confirmTabs, el.insertUrl);

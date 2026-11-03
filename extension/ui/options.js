@@ -384,6 +384,7 @@ async function renderShortcut() {
   $('shortcut-italic').textContent = isMac ? '⌘I' : 'Ctrl+I';
   $('shortcut-strike').textContent = isMac ? '⌘⇧X' : 'Ctrl+Shift+X';
   $('shortcut-code').textContent = isMac ? '⌘⇧C' : 'Ctrl+Shift+C';
+  for (const id of ['shortcut-slash', 'shortcut-slash-2']) $(id).textContent = isMac ? '⌘/' : 'Ctrl+/';
 }
 
 // ショートカットは Chrome の画面でしか変えられない
