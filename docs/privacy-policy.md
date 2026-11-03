@@ -4,7 +4,7 @@
 > その URL を Chrome ウェブストアと Google Cloud の OAuth 設定に登録します。
 
 制定日：未定
-提供者：nekomanma91823
+提供者：Takuma Namisaki
 お問い合わせ：未定。メールアドレスかフォームの URL を書く
 
 ## 1. 取り扱う情報
